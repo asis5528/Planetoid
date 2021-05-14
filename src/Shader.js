@@ -39,8 +39,8 @@ float noise(vec3 x){
  worldPos = vec3(modelMatrix*vec4(v,1.0));
     float n = noise(worldPos*3.);
 n = noise(worldPos*2.+n*0.5);
-    v.xyz+=normal*n*0.5;
- worldPos = vec3(modelMatrix*vec4(v,1.0));
+    v.xyz+=normal*n*1.5;
+ //worldPos = vec3(modelMatrix*vec4(v,1.0));
       vec4 modelViewPosition = modelViewMatrix * vec4(v, 1.0);
       gl_Position = projectionMatrix * modelViewPosition; 
       }
@@ -75,7 +75,8 @@ float noise(vec3 x){
 
           float n = noise(worldPos*3.);
 n = noise(worldPos*2.+n*0.5);
-           gl_FragColor = vec4(n);
+vec4 col2 =vec4(mix(vec4(0.7,0.7,0.3,1.5),vec4(0.5,0.7,0.6,1.0),smoothstep(0.63,0.53,n)));
+           gl_FragColor = vec4(mix(vec4(0.2,0.8,0.2,1.0),col2*n,smoothstep(0.7,0.63,n)));
            
           }
       `;
