@@ -15,10 +15,12 @@ import {
 import * as THREE from "three";
 import OrbitControls from "three-orbitcontrols";
 import { getGPUTier } from "detect-gpu";
+import { Shaders } from "./Shader.js";
 
 const gpu = getGPUTier();
 console.log(gpu);
 
+let shaders = new Shaders();
 let container;
 let camera;
 let renderer;
@@ -66,10 +68,17 @@ function createMeshes() {
   //const textureLoader = new TextureLoader();
  // const texture = textureLoader.load("./src/uv_test_bw_1024.png");
   //texture.encoding = sRGBEncoding;
-  //texture.anisotropy = 16;
+    //texture.anisotropy = 16;
+    let un = {};
+    const material = new THREE.ShaderMaterial({
+        uniforms: un,
+        fragmentShader: shaders.fragmentShader(),
+        vertexShader: shaders.vertexShader()
+        
+    });
 
-    const geometry = new THREE.SphereBufferGeometry(2, 40, 40);
-  const material = new MeshStandardMaterial({ });
+    const geometry = new THREE.SphereBufferGeometry(2, 140, 140);
+  //const material = new MeshStandardMaterial({ });
   mesh = new Mesh(geometry, material);
   scene.add(mesh);
 }
