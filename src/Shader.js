@@ -37,15 +37,18 @@ float noise(vec3 x){
 
    // v+=sin(v*nor*3.)*0.1;
  worldPos = vec3(modelMatrix*vec4(v,1.0));
-    float n = noise(worldPos*3.);
+    float n = noise(worldPos*5.);
 n = noise(worldPos*2.+n*0.5);
-    v.xyz+=normal*n*1.5;
+    v.xyz+=normal*(n-0.5)*0.9;
  //worldPos = vec3(modelMatrix*vec4(v,1.0));
       vec4 modelViewPosition = modelViewMatrix * vec4(v, 1.0);
       gl_Position = projectionMatrix * modelViewPosition; 
       }
     `;
     }
+
+   
+
     fragmentShader() {
         return `
      varying vec3 worldPos;
@@ -73,10 +76,100 @@ float noise(vec3 x){
 
         void main(){
 
-          float n = noise(worldPos*3.);
+          float n = noise(worldPos*5.);
 n = noise(worldPos*2.+n*0.5);
 vec4 col2 =vec4(mix(vec4(0.7,0.7,0.3,1.5),vec4(0.5,0.7,0.6,1.0),smoothstep(0.63,0.53,n)));
-           gl_FragColor = vec4(mix(vec4(0.2,0.8,0.2,1.0),col2*n,smoothstep(0.7,0.63,n)));
+           gl_FragColor = vec4(mix(vec4(0.1,0.9,0.2,1.0),col2*n,smoothstep(0.7,0.63,n)));
+           
+          }
+      `;
+    }
+
+    simpleVShader() {
+        return `
+      varying vec2 vUv; 
+      varying vec3 worldPos;
+      varying vec4 viewPos;
+      varying vec3 nor;
+
+
+    float hash(vec3 p3){
+    p3 = fract(p3 * 0.1031);
+    p3 += dot(p3,p3.yzx + 19.19);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+
+float noise(vec3 x){
+    vec3 i = floor(x);
+    vec3 f = fract(x);
+    f = f*f*(3.0-2.0*f);
+    return mix(mix(mix(hash(i+vec3(0, 0, 0)), 
+                       hash(i+vec3(1, 0, 0)),f.x),
+                   mix(hash(i+vec3(0, 1, 0)), 
+                       hash(i+vec3(1, 1, 0)),f.x),f.y),
+               mix(mix(hash(i+vec3(0, 0, 1)), 
+                       hash(i+vec3(1, 0, 1)),f.x),
+                   mix(hash(i+vec3(0, 1, 1)), 
+                       hash(i+vec3(1, 1, 1)),f.x),f.y),f.z);
+}
+      void main() {
+      vUv =vec2(uv.x,uv.y);
+      nor = (vec3(mat3(modelMatrix)*normal));
+      viewPos = modelViewMatrix*vec4(position,1.0);
+     
+    vec3 v = position;
+   
+   // v+=sin(nor+v*7.)*0.2;
+ worldPos = vec3(modelMatrix*vec4(v,1.0));
+    //float n = noise(worldPos*5.);
+//n = noise(worldPos*2.+n*0.5);
+    //v.xyz+=normal*n*0.7;
+ //worldPos = vec3(modelMatrix*vec4(v,1.0));
+      vec4 modelViewPosition = modelViewMatrix * vec4(v, 1.0);
+      gl_Position = projectionMatrix * modelViewPosition; 
+      }
+    `;
+    }
+    simpleFShader() {
+        return `
+     varying vec3 worldPos;
+
+float hash(vec3 p3){
+    p3 = fract(p3 * 0.1031);
+    p3 += dot(p3,p3.yzx + 19.19);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+
+float noise(vec3 x){
+    vec3 i = floor(x);
+    vec3 f = fract(x);
+    f = f*f*(3.0-2.0*f);
+    return mix(mix(mix(hash(i+vec3(0, 0, 0)), 
+                       hash(i+vec3(1, 0, 0)),f.x),
+                   mix(hash(i+vec3(0, 1, 0)), 
+                       hash(i+vec3(1, 1, 0)),f.x),f.y),
+               mix(mix(hash(i+vec3(0, 0, 1)), 
+                       hash(i+vec3(1, 0, 1)),f.x),
+                   mix(hash(i+vec3(0, 1, 1)), 
+                       hash(i+vec3(1, 1, 1)),f.x),f.y),f.z);
+}
+
+        void main(){
+
+          float n = noise(worldPos*5.);
+n = noise(worldPos*2.+n*0.5);
+vec3 p = worldPos;
+p*=22.;
+float noi =  noise(p*5.);
+noi = noise(p*4.+sin(noi*2.)*0.5);
+vec4 col2 =vec4(mix(vec4(0.7,0.7,0.3,1.5),vec4(0.5,0.7,0.6,1.0),smoothstep(0.63,0.53,n)));
+float nn =  smoothstep(0.48,0.49,n);
+float kn = (sin(n*122.)*0.5+0.5)*0.1*smoothstep(0.35,0.4,n);
+n = smoothstep(0.48,0.5,n);
+float k = nn-n;
+           gl_FragColor = vec4(vec3(0.5,0.99,1.)+nn+kn+(1.-noi*2.),clamp((1.-n)-0.3,0.,1.));
            
           }
       `;
