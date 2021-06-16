@@ -60,7 +60,7 @@ function createLights() {
   const mainLight = new DirectionalLight(0xffffff, 5);
   mainLight.position.set(10, 10, 10);
 
-  const hemisphereLight = new HemisphereLight(0xddeeff, 0x202020, 5);
+  const hemisphereLight = new HemisphereLight(0xddeeff, 0x202020, 10);
   scene.add(mainLight, hemisphereLight);
 }
 
@@ -76,11 +76,19 @@ function createMeshes() {
         vertexShader: shaders.vertexShader()
         
     });
+    const traMat = new THREE.ShaderMaterial({
+        uniforms: un,
+        fragmentShader: shaders.simpleFShader(),
+        vertexShader: shaders.simpleVShader(), transparent:true
+
+    });
 
     const geometry = new THREE.SphereBufferGeometry(2, 140, 140);
   //const material = new MeshStandardMaterial({ });
-  mesh = new Mesh(geometry, material);
-  scene.add(mesh);
+    mesh = new Mesh(geometry, material);
+    let sp = new Mesh(geometry, traMat);
+    //sp.scale.set(1.2, 1.2, 1.2);
+  scene.add(mesh,sp);
 }
 
 function createRenderer() {
