@@ -9,7 +9,7 @@ import OrbitControls from "three-orbitcontrols";
 
 import { Shaders } from "./Shader.js";
 import { RenderPipeline } from "./renderPipeline.js";
-import { MaterialLoader } from "three";
+import { MaterialLoader, MeshStandardMaterial } from "three";
 
 
 
@@ -50,11 +50,7 @@ function createCamera() {
 }
 
 function createLights() {
-  const mainLight = new THREE.DirectionalLight(0xffffff, 5);
-  mainLight.position.set(10, 10, 10);
-
-  const hemisphereLight = new THREE.HemisphereLight(0xddeeff, 0x202020, 10);
-  scene.add(mainLight, hemisphereLight);
+  
 }
 
 function createMeshes() {
@@ -70,6 +66,12 @@ function createMeshes() {
 
     }); 
   
+    let cub = new THREE.BoxBufferGeometry(0.2,0.2,0.2);
+    let cubMat = new THREE.MeshStandardMaterial();
+    let cube = new THREE.Mesh(cub,cubMat);
+    cube.position.set(2,0,0);
+    scene.add(cube);
+
     const loader = new GLTFLoader();
     loader.load(
       // resource URL
@@ -81,7 +83,9 @@ function createMeshes() {
 
           if(child.isMesh){
             child.scale.set(2,2,2);
-            child.material = material;
+            
+            child.material = new MeshStandardMaterial({color: new THREE.Color(0.66,0.55,0.3)});
+            console.log(child.material)
           }
 
         });

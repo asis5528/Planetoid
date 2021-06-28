@@ -9,7 +9,8 @@
   },
   "dependencies": {
     "detect-gpu": "0.0.40",
-    "three": "0.103.0",
+    "k": "^0.10.33",
+    "three": "^0.129.0",
     "three-orbitcontrols": "2.102.1"
   },
   "devDependencies": {

@@ -47,12 +47,12 @@ n = noise(worldPos*2.+n*0.5);
       gl_Position = projectionMatrix * modelViewPosition; 
       }
     `;
-    }
+  }
 
-   
 
-    fragmentShader() {
-        return `
+
+  fragmentShader() {
+    return `
      varying vec3 worldPos;
 
 float hash(vec3 p3){
@@ -84,25 +84,52 @@ vec4 col2 =vec4(mix(vec4(0.7,0.7,0.3,1.5),vec4(0.5,0.7,0.6,1.0),smoothstep(0.63,
            gl_FragColor = vec4(mix(vec4(0.1,0.9,0.2,1.0),col2*n,smoothstep(0.7,0.63,n)));
            */
           
-          float length = length(worldPos)*20.0-39.4;
+          float length = length(worldPos);
+          length = pow(length,0.7);
           vec3 col = mix(vec3(0.5,0.5,0.1),vec3(0.3,0.3,0.95),clamp(length,0.,1.));
           col= vec3((smoothstep(0.5,0.9,sin(length*15.))+0.6)*col);
+          col = vec3(length);
+          float N = noise(worldPos+length*925.);
+      
+          N *= smoothstep(0.3,0.6,noise(worldPos+length*(925./2.)));
+          N = smoothstep(0.1,0.8,N);
+          vec3 color = vec3(0.4);
+          color = vec3(length*10.-16.);
+          vec3 red = vec3(0.1,0.5,0.15);
+          vec3 blue = vec3(0.6,0.6,0.05);
+          vec3 green = vec3(0.6,0.6,0.9);
+          float step1 = 0.0;
+          float step2 = 0.1;
+          float step3 = 0.2;
+          float step4 = 0.7;
+          
+          color = mix(color, red, smoothstep(step1, step2, N));
+        color = mix(color, blue, smoothstep(step2, step3, N));
+        color = mix(color, green, smoothstep(step3, step4, N));
+        
+         // N = pow(N,2.2);
+          col = vec3(color);
            gl_FragColor = vec4(vec3(col),1.);
            
           }
       `;
-    }
+  }
 
-    waterVertexShader() {
-        return `
+  waterVertexShader() {
+    return `
       varying vec2 vUv; 
       varying vec3 worldPos;
-      
-      varying vec3 viewPos;
-      varying vec3 nor;
-    varying vec4 clipSpace;
-uniform float time;
+      attribute vec4 tangent;
 
+
+      varying vec3 nor;
+      varying vec3 lightPos;
+      varying vec3 viewPos;
+      varying vec3 normalWorldPos;
+    varying vec4 clipSpace;
+  uniform float time;
+  uniform vec3 camPos;
+  uniform vec3 sunPos;
     float hash(vec3 p3){
     p3 = fract(p3 * 0.1031);
     p3 += dot(p3,p3.yzx + 19.19);
@@ -125,27 +152,45 @@ float noise(vec3 x){
 }
       void main() {
       vUv =vec2(uv.x,uv.y);
-      nor = (vec3(mat3(modelMatrix)*normal));
-      viewPos = mat3(modelViewMatrix)*position;
+      nor = normalize(mat3(modelMatrix)*normal);
+      vec3 T = normalize(normalMatrix*vec3(tangent));
+      T = normalize(T - dot(T, nor) * nor);
+    vec3 B = cross(nor, T);
+    mat3 TBN = transpose(mat3(T, B, nor));
+    lightPos = TBN * sunPos;
+    viewPos = TBN * camPos;
+   
+    
+
+
      
     vec3 v = position;
+    vec3 wave = sin(nor+v*22.+time*0.5)*0.005;
+    v+=wave;
    
-    v+=sin(nor+v*22.+time*0.5)*0.005;
  worldPos = vec3(modelMatrix*vec4(v,1.0));
+ normalWorldPos = TBN * worldPos;
        vec4 modelViewPosition = modelViewMatrix * vec4(v, 1.0);
  clipSpace = projectionMatrix * modelViewPosition;
       gl_Position = clipSpace; 
       }
     `;
-    }
-    waterFragmentShader() {
-        return `
+  }
+  waterFragmentShader() {
+    return `
     uniform sampler2D waterDepth;
     uniform sampler2D refractionTexture;
+    uniform sampler2D waterNormal;
+    uniform sampler2D foamNoise;
     uniform vec3 camPos;
+    uniform vec3 sunPos;
      varying vec3 worldPos;
      varying vec3 nor;
-     varying vec3 viewPos;
+     varying vec3 lightPos;
+      varying vec3 viewPos;
+      varying vec3 normalWorldPos;
+     varying vec2 vUv;
+
 uniform float time;
 varying vec4 clipSpace;
 
@@ -153,41 +198,104 @@ varying vec4 clipSpace;
     {
         return zNear * zFar / (zFar + d * (zNear - zFar));
     }
-
+    float hash(vec3 p3){
+      p3 = fract(p3 * 0.1031);
+      p3 += dot(p3,p3.yzx + 19.19);
+      return fract((p3.x + p3.y) * p3.z);
+  }
+  
+  
+  float noise(vec3 x){
+      vec3 i = floor(x);
+      vec3 f = fract(x);
+      f = f*f*(3.0-2.0*f);
+      return mix(mix(mix(hash(i+vec3(0, 0, 0)), 
+                         hash(i+vec3(1, 0, 0)),f.x),
+                     mix(hash(i+vec3(0, 1, 0)), 
+                         hash(i+vec3(1, 1, 0)),f.x),f.y),
+                 mix(mix(hash(i+vec3(0, 0, 1)), 
+                         hash(i+vec3(1, 0, 1)),f.x),
+                     mix(hash(i+vec3(0, 1, 1)), 
+                         hash(i+vec3(1, 1, 1)),f.x),f.y),f.z);
+  }
         void main(){
 
 vec2 uv = clipSpace.xy/clipSpace.w;
 uv*=0.5;
 uv+=0.5;
+vec2 wave = sin(normalize(nor.xy)+uv*22.+time*0.5)*0.005;
+uv+=wave;
+vec3 normal = texture2D(waterNormal,vUv*22.).rgb;
+normal = normalize(normal*2.0-1.0);
+
+
+//Calculating water depth
 float floorDepth = linearize_depth(texture2D(waterDepth,uv).x,0.1,100.);
 float surfaceDepth = linearize_depth(gl_FragCoord.z,0.1,100.);
 float depth = floorDepth-surfaceDepth;
 depth = clamp(depth,0.,1.);
-float foam = smoothstep(0.009,0.002,depth);
-//uv.y+=sin(worldPos.x*22.+worldPos.y*20.+time*2.)*0.01;
-vec4 col = texture2D(refractionTexture,vec2(uv.x,uv.y));
-vec3 viewDir = normalize(worldPos - camPos);
+float foam = smoothstep(0.03,0.015,depth);
+
+
+//refraction texture
+vec4 refraction = texture2D(refractionTexture,vec2(uv.x,uv.y))*0.6;
+//reflection
+vec4 reflection = vec4(0.6,0.6,1.,1.);
+
+
+//camera to water vector
+vec3 viewDir = normalize(worldPos-camPos  );
+
+//fresnel
 float fresnel = dot(viewDir,normalize(nor))+1.3;
 fresnel = smoothstep(0.17,1.2,fresnel)+0.2;
-col = mix(col,vec4(0.6,0.6,1.,1.),clamp(fresnel,0.,1.));
-//col = mix(col*1.2,vec4(0.5,0.5,1.,1.),0.3);
-//gl_FragColor = vec4(vec3(col)+vec3(foam*2.),1.-smoothstep(0.005,0.001,depth));
-//gl_FragColor = mix(col,vec4(0.5,0.5,1.,1.),0.5);
+
+vec4 WaterMix = mix(refraction,reflection,clamp(fresnel,0.,1.));
+
+vec3 lightDir = normalize(sunPos - worldPos);
+float diff = max(dot(lightDir, normalize(nor)), 0.0)*0.8+0.2;
+
+float diffuse = max(dot(normalize(nor),lightDir),0.)/1.5+0.3;
+vec3 reflectDir = reflect(-lightDir, normalize(nor));
+    vec3 halfwayDir = normalize(lightDir + viewDir);  
+    float spec = pow(max(dot(normalize(nor), halfwayDir), 0.0), 132.0);
+
+
+    vec2 surfaceUV = vUv;
+float edgePatternScale = 62.;
+vec2 scaledUV = surfaceUV * edgePatternScale; 
+float edgePatternScroll = 10.5;
+float channelA = texture2D(foamNoise, scaledUV - vec2(edgePatternScroll, cos(surfaceUV.x))).r; 
+float channelB = texture2D(foamNoise, scaledUV * 0.25 + vec2(sin(surfaceUV.y), edgePatternScroll)).b; 
+float mask = (channelA - channelB) * 0.95;
+//mask = pow(mask, 2.);
+mask = clamp(mask, 0., 1.);
+foam*=(depth*50.);
+foam-=mask;
+foam = clamp(foam,0.,1.);
+
+    //WaterMix = vec4(0.5);
+vec3 finalWater = mix(WaterMix.rgb*diff+spec,vec3(0.9,0.9,0.9),foam);
+
+
+gl_FragColor.rgb = finalWater;
 
 
 
 
-gl_FragColor = mix(col,vec4(0.6,0.6,1.,1.),clamp(fresnel,0.,1.));
-gl_FragColor.rgb += vec3(foam);
+
+//gl_FragColor.rgb = vec3(foam);
+//gl_FragColor.rgb = vec3(normal);
 gl_FragColor.a = 1.;
-//gl_FragColor = vec4(1.,0.,0.,1.);
+gl_FragColor.a= (clamp(depth*50.,0.,1.)+fresnel);
+
            
           }
       `;
-    }
+  }
 
-    postVertexShader() {
-        return `
+  postVertexShader() {
+    return `
       varying vec2 st; 
 
       void main() {
@@ -195,24 +303,34 @@ gl_FragColor.a = 1.;
       gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); 
       }
     `;
-    }
+  }
 
-    postFragmentShader() {
-        return `
+  postFragmentShader() {
+    return `
       varying vec2 st; 
     uniform sampler2D sceneTexture;
-
+uniform vec2 res;
     float linearize_depth(float d,float zNear,float zFar)
     {
         return zNear * zFar / (zFar + d * (zNear - zFar));
     }
       void main() {
+        vec2 uv = (2.*gl_FragCoord.xy-res.xy)/res.y;
+        float c = smoothstep(1.25,1.,length(uv))*2.;
     float d =texture2D(sceneTexture,st).x;
+   // c-=texture2D(sceneTexture,st).r*22.;
+    c = clamp(c,0.,1.);
     float z = linearize_depth(d,0.1,100.);
-     gl_FragColor = vec4(texture2D(sceneTexture,st));
+    vec4 col = texture2D(sceneTexture,st);
+    col.rgb = pow(col.rgb,vec3(1./1.5));
+     gl_FragColor = vec4(col)+vec4(c)*vec4(0.55,0.5,0.9,1.)*1.6*0.0;
+    // gl_FragColor.rgb = pow(gl_FragColor.rgb,vec3(1./1.2));
+     //gl_FragColor*=1.0;
+    //gl_FragColor = vec4(texture2D(sceneTexture,st).r);
+
       }
     `;
-    }
+  }
 
 
   normalShader() {
@@ -338,7 +456,7 @@ float linearize_depth(float d,float zNear,float zFar)
     }
   `;
   }
-  
+
 
   BlurHvs() {
     return `
