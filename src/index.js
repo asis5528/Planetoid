@@ -2,7 +2,7 @@
 
 
 import * as THREE from "three";
-import PLANET from './planet.gltf'
+import PLANET from './planet2.gltf'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import OrbitControls from "three-orbitcontrols";
 
@@ -46,7 +46,7 @@ function createCamera() {
   const near = 0.1;
   const far = 100;
   camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
-  camera.position.set(-2, 2, 10);
+  camera.position.set(-2, 2, 5);
 }
 
 function createLights() {

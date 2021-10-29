@@ -6,11 +6,16 @@ import DUDV from './dudv1.jpeg'
 import FOAM from './foam.png'
 import {makeWaterMaterial} from "./waterShader.js";
 import {makeCloudMaterial} from "./cloudShader.js";
+import {GetFrustumCorners} from "./utils.js";
 
 let shaders = new Shaders();
 
+
 export class RenderPipeline {
     constructor(scene, camera, renderer) {
+        let frustumCorners = GetFrustumCorners(camera);
+        console.log(frustumCorners)
+        //console.log(camera.aspect)
         this.scene = scene;
         this.renderer = renderer;
         this.camera = camera;
@@ -27,7 +32,11 @@ export class RenderPipeline {
         this.RT1.depthBuffer = true;
         this.RT1.depthTexture = new THREE.DepthTexture();
         this.RT2 = new THREE.WebGLMultisampleRenderTarget(window.innerWidth, window.innerHeight);
-
+        this.RT2.depthBuffer = true;
+        this.RT2.depthTexture = new THREE.DepthTexture();
+        this.RT2.depthTexture.type = THREE.UnsignedIntType;
+        //this.RT2.depthBuffer = true;
+        //this.RT2.depthTexture = new THREE.DepthTexture();
 
         this.normalTexture = new THREE.TextureLoader().load(NORMAL);
         this.normalTexture2 = new THREE.TextureLoader().load(NORMAL2);
@@ -72,14 +81,14 @@ export class RenderPipeline {
         waterMaterial2.uniforms.tNormalMap.value = this.normalTexture;
         waterMaterial2.uniforms.tDudvMap.value = this.dudv;
         waterMaterial2.uniforms.tNormalMap2.value = this.normalTexture2;
-        const cloudMateril = makeCloudMaterial();
+        const cloudMaterial = makeCloudMaterial();
 
         const geometry = new THREE.SphereBufferGeometry(1.99, 140, 140);
         geometry.computeTangents();
 
         const plane2 = new THREE.PlaneBufferGeometry(5, 5,15.);
-        const cube = new THREE.BoxBufferGeometry(5,5,5);
-        this.cube = new THREE.Mesh(cube,cloudMateril)
+        const cube = new THREE.BoxBufferGeometry(10,10,10);
+        this.cube = new THREE.Mesh(cube,cloudMaterial)
         this.water = new THREE.Mesh(geometry, waterMaterial2);
         //this.water.rotation.set(-3.1415/2.,0,0.);
         this.scene.add(this.water);
@@ -113,7 +122,10 @@ export class RenderPipeline {
 
 
         const plane = new THREE.PlaneBufferGeometry(2, 2);
-        this.quad = new THREE.Mesh(plane, this.postMat);
+        this.quad = new THREE.Mesh(plane, cloudMaterial);
+        this.quad.material.uniforms.frustumCorners.value  = frustumCorners;
+        this.quad.material.uniforms.sceneTexture.value = this.RT2.texture;
+        this.quad.material.uniforms.depthTexture.value = this.RT2.depthTexture;
         this.quad.position.z = -1;
         this.postScene.add(this.quad);
 
@@ -134,7 +146,9 @@ export class RenderPipeline {
         let cameraPosition = new THREE.Vector3();
         this.camera.getWorldPosition(cameraPosition)
 
-        this.cube.material.uniforms.camPos.value = cameraPosition;
+        this.quad.material.uniforms.viewInverse.value = this.camera.matrixWorldInverse
+       this.quad.material.uniforms.camPos.value = cameraPosition;
+       this.quad.material.uniforms.time.value = this.waterUniforms.time.value;
 
         this.waterUniforms.camPos.value = cameraPosition;
         this.water.material.uniforms.vCameraPosition.value = cameraPosition;

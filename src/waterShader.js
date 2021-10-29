@@ -145,8 +145,11 @@ void main(){
          1.0 - acos(vWorldPosition.z) / 3.1415926);
 
     //getting distortion data from dudvmap
+
+        float polarArea = smoothstep(1.968,1.97,abs(vWorldPosition.y));
+
     vec2 distortion = texture2D(tDudvMap,vec2(vUv.x*distortionFrequency+time*0.01,vUv.y*distortionFrequency)).rg*0.1;
-    distortion = vUv+vec2(distortion.x,distortion.y+time*0.01);
+    distortion = vUv+vec2(distortion.x,distortion.y+time*0.01)*(1.-polarArea);
 
     //double distortion(sampling dudv map from previous distorted value)
     vec2 totaldistortion = (texture2D(tDudvMap,distortion).rg*2.0-1.0)*0.1;
@@ -178,18 +181,22 @@ void main(){
 
     //sampling normal map using distorted uv map
     vec2 normalUV = vUv;
-    normalUV+=time*0.0009;
-    vec3 normal = texture2D(tNormalMap,normalUV*0.2*normalMapUvTilling+Vnoise*normalMapDistortionIntensity*0.00).rgb;
-    normal = normalize(normal * 2.0 - 1.0);  // this normal is in tangent space
+   
+    normalUV = mix(vUv*(1.-polarArea*0.0),abs(vec2(vWorldPosition.x,vWorldPosition.z)*0.5),polarArea);
+
+  //  normalUV+=time*0.0009;
+   // vec3 normal = texture2D(tNormalMap,normalUV*0.2*normalMapUvTilling+Vnoise*normalMapDistortionIntensity*0.00).rgb;
+   // normal = normalize(normal * 2.0 - 1.0);  // this normal is in tangent space
    // normal =vec3(normal.r*2.0-1.0,normal.b,normal.g*2.0-1.0);
    // normal =  normalize(normal+normalize(vNormal));
 
-    vec3 normal2 = texture2D(tNormalMap2,normalUV*0.2*normalMapUvTilling+Vnoise*normalMapDistortionIntensity*0.003).rgb;
+    vec3 normal2 = texture2D(tNormalMap2,normalUV*0.05*normalMapUvTilling+Vnoise*normalMapDistortionIntensity*0.003).rgb;
     normal2 = normalize(normal2 * 2.0 - 1.0);
-   // normal2 =vec3(normal2.r*2.0-1.0,normal2.b,normal2.g*2.0-1.0);
-    //normal2 =  normalize(normal2+normalize(vNormal));
+    normal2 = normalize(mix(normal2,vec3(0.0,0.0,1.0),0.7));
+  //  normal2 = mix(normal2,(vec3(0.,0.,1.)),polarArea);
+  
 
-   // normal = normalize(vNormal+pow(Vnoise,0.2));
+ 
 
     
 
@@ -239,13 +246,13 @@ void main(){
     caustic.xyz = (vec3(vWorldPosition.xy,depth*4.)+time*0.005)*200.*(sin(1.*.5)+2.)/50.;
     caustic = pow(min(min(F.5)),F.4))),F.3))), 7.)*25.+vec4(0.);
 
-    //adding caustic to water
+    //adding caustic to waterz
     finalwaterColor+=caustic.x*0.7*(viewAngle*viewAngle)*vec3(0.4,0.6,0.5)*1.5;
 
     //calculating specular from light
-    vec3 reflectDir = reflect(-camDir, normal);
+   // vec3 reflectDir = reflect(-camDir, normal);
     vec3 halfwayDir = normalize(camDir + camDir);  
-    vec3 reflectedLight = reflect(-camDir,camDir);
+   // vec3 reflectedLight = reflect(-camDir,camDir);
     float specular = max(dot(normal2,halfwayDir),0.0);
     
     //adding specular intensity to water
@@ -265,9 +272,7 @@ void main(){
     gl_FragColor.rgb = vec3(mix(gl_FragColor.rgb,waterColor2,clamp(depth*15.,0.,1.)))*1.5;
     gl_FragColor.rgb += vec3(pow(specular,324.))*specularColor*0.9;
     gl_FragColor.rgb = pow(gl_FragColor.rgb,vec3(1./1.2))*1.0;
-   // gl_FragColor.rgb = vec3(1.-max(viewAngle,0.));
-   //gl_FragColor.rgb = vec3(viewAngle*depth*12.);
-   // gl_FragColor.a = 1.;
+   //gl_FragColor.rgb = vec3(normalUV,0.);
 
 }
 `;

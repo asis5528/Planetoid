@@ -1,18 +1,25 @@
-import { Color, NormalBlending, ShaderMaterial, Vector2, Vector4, Vector3, TextureLoader, RepeatWrapping,BackSide } from "three";
+import { Color, NormalBlending, ShaderMaterial, Vector2, Vector4, Vector3, TextureLoader, RepeatWrapping,BackSide, Matrix4 } from "three";
 import NORMAL from './waterNormal.jpeg'
 import DUDV from './dudv.jpeg'
+import { GetFrustumCorners } from "./utils";
 const vs = `
 varying vec2 vUv;
 varying vec3 rayOrigin;
 varying vec3 rayDirection;
-
+varying vec3 rayDir;
+varying float n;
 uniform vec3 camPos;
+uniform mat4 frustumCorners;
+uniform mat4 viewInverse;
+vec3 dir[4] = vec3[4](vec3(-1.,1.,-1.),vec3(1.,1.,-1.),vec3(-1.,-1.,-1.),vec3(1.,-1.,-1.));
 
 void main(){
-    vUv = uv;
-    
-    rayOrigin = vec3(inverse( modelMatrix ) *vec4(camPos,1.));
-    rayDirection = (position-rayOrigin);
+    vUv = vec2(uv.x,uv.y);
+    n = float(gl_VertexID);
+     rayDir = (dir[gl_VertexID].xyz);
+     rayDir = vec3(rayDir)*mat3(viewInverse);
+    rayOrigin = vec3(camPos);
+    rayDirection = (position*2.-rayOrigin);
     gl_Position = projectionMatrix *modelViewMatrix * vec4( position, 1.0 );
 }`;
 
@@ -24,7 +31,33 @@ varying vec3 rayDirection;
 uniform mat4 projectionMatrix;
 uniform mat4 modelViewMatrix;
 uniform vec3 camPos;
+uniform sampler2D sceneTexture;
+uniform sampler2D depthTexture;
+uniform float time;
+varying float n;
+varying vec3 rayDir;
+float hash(vec3 p3){
+    p3 = fract(p3 * 0.1031);
+    p3 += dot(p3,p3.yzx + 19.19);
+    return fract((p3.x + p3.y) * p3.z);
+}
 
+
+float noise(vec3 x){
+    vec3 i = floor(x);
+    vec3 f = fract(x);
+    f = f*f*(3.0-2.0*f);
+    return mix(mix(mix(hash(i+vec3(0, 0, 0)), 
+                       hash(i+vec3(1, 0, 0)),f.x),
+                   mix(hash(i+vec3(0, 1, 0)), 
+                       hash(i+vec3(1, 1, 0)),f.x),f.y),
+               mix(mix(hash(i+vec3(0, 0, 1)), 
+                       hash(i+vec3(1, 0, 1)),f.x),
+                   mix(hash(i+vec3(0, 1, 1)), 
+                       hash(i+vec3(1, 1, 1)),f.x),f.y),f.z);
+}
+
+float rand(vec2 co) { return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453); }
 float procDepth(vec3 localPos){
     vec4 frag = projectionMatrix*modelViewMatrix*vec4(localPos,1);
     frag/=frag.w;
@@ -43,8 +76,18 @@ float sdBox( vec3 p, vec3 b )
 }
 
 float map(vec3 p){
-    p.x-=0.5;
-    float d = length(p)-0.4;
+    //p.x-=2.0;
+    float d = length(p)-1.4;
+ //   d = max(-length(p)-1.5,d);
+    vec3 q = p*3.;
+ //   q.x-=time*0.2;
+    //q.y+=sin(q.x+q.z+time)*0.2;
+    float a = time*0.05;
+    q.xy*=mat2(cos(a),sin(a),-sin(a),cos(a));
+    float n = noise(q);
+    n = noise(q*0.3+n*2.+time*0.1);
+ //  n = noise(p*2.+n*0.4);
+ d+=n*0.4*sin(atan(q.x,q.y)*3.)*0.2;
     p.x-=1.5;
     p.y -=1.0;
     //p.x*=2.;
@@ -56,16 +99,22 @@ float map(vec3 p){
 
 
 
-vec4 volume(vec3 ro,vec3 rd){
+vec4 volume(vec3 ro,vec3 rd,vec4 col,float z){
     
     float t = 0.;
+    t = length(ro)-2.;
+    float ran = rand(vUv);
+    t+=ran*0.05;
+    //t*=
     vec4 sum;
     vec3 rp;
-    for(int i= 0;i<123;i++){
+    float tr = 1.;;
+    float pap = 0.;
+    for(int i= 0;i<32;i++){
         
     
         vec3 p = ro+rd*t;
-        
+       // p.z+=2.;
         float a = 0.9;
         p.yz*=mat2(cos(a),sin(a),-sin(a),cos(a));
         float h = 1.-map(p);
@@ -75,22 +124,27 @@ vec4 volume(vec3 ro,vec3 rd){
        // if(h<-z) col1 =vec4(1.,0.,0.,1.);
         if(h>0.001){
         
-        vec4 c = mix(mix(vec4(0.6,0.5,0.5,1.),vec4(1.,1.,1.,1.),p.y),vec4(0.3,0.6,0.7,1.),p.x);
-        
-        sum +=vec4(col1*1.)*vec4(c)*(1.-sum.a);
-      
-        //if(h<z*z)  break;
-       // if(t>z) break;
-        }
-        //float rnd = rand(p.xz);
-        float stp = (.5 ) ;
+        vec4 c = mix(mix(vec4(0.2,0.2,0.2,1.),vec4(1.,1.,1.,1.),p.y),vec4(0.3,0.6,0.7,1.),p.x);
+        c.rgb*=0.4;
+        sum +=vec4(col1*1.)*vec4(0.2*c)*(1.-sum.a);
+        if(t>z){ pap = t-z; break; }
        
-        t+=0.025;
+        }
+        float rnd = rand(p.xz);
+        float stp = (0.025+rnd*0.00 ) ;
+        tr*=exp(-h*stp*0.1);
+        if(tr<0.01) break;
+        //stp = pow(stp,2.7);
+         //if(z<h) break;
+         t+=stp;
        
     
     }
-    gl_FragDepth = procDepth(ro+rd*t);
-   //sum = mix(col,sum,sum.a);
+   // gl_FragDepth = procDepth(ro+rd*t);
+   col*=1.+sum.a*1.0;
+   sum = mix(col,sum,sum.a);
+  tr = pow(tr,22.)*0.7;
+  //sum = col*clamp(tr,0.,1.)+sum+pap;
     return vec4(sum);
 }
 
@@ -109,7 +163,13 @@ float ray(vec3 ro,vec3 rd){
 
 }
 
+float depthToLinear( float z, float cameraNear, float cameraFar ) {
+    float z_n = 2.0 * z - 1.0;
+    
+    float z_e = 2.0 * cameraNear * cameraFar / (cameraFar + cameraNear - z_n * (cameraFar - cameraNear));
 
+    return z_e;
+}
 
 
 
@@ -126,8 +186,10 @@ void main(){
    gl_FragColor = vec4(col,0.5);
 
 
-   vec3 ro = rayOrigin;
-   vec3 rd = normalize(rayDirection);
+   vec3 ro = vec3(camPos);
+    
+   vec3 rd = normalize(vec3(vUv,-1.));
+  rd = normalize(rayDir);
    float c = dot(rayDirection,rayDirection); 
    /*
    float t = ray(ro,rd);
@@ -136,12 +198,31 @@ void main(){
    if(t>0.) col = vec3(-dot(rd,normalize(p)));
   // if(t>0.) col = vec3(1.,0.,0.);
   // if(t>0.) col = vec3(p);
-   gl_FragDepth = procDepth(p);
-   */
-   col = volume(ro,rd).rgb;
-   gl_FragDepth = 0.0;
-   gl_FragColor = vec4(vec3(col),1.0);
+   //gl_FragDepth = procDepth(p);
+   
+  
+  
+  
+/*
 
+   float t = ray(ro,rd);
+   col = vec3(0.);
+   vec3 p = ro+rd*t;
+   if(t>0.) col = vec3(1.,0.,0.);
+*/
+float z = texture2D(depthTexture,vUv).r;
+z = depthToLinear(z,0.1,100.);
+vec4 sceneCol = texture2D(sceneTexture,vUv);
+
+vec4 sum = volume(ro,rd,sceneCol,z);
+   col = sum.rgb;
+  // col = sceneCol.rgb;
+   float cc = smoothstep(0.1,0.06,length(rayDir.xy));
+  
+  //col = texture2D(sceneTexture,vUv).rgb+col*0.0;
+//col = vec3(z);
+    gl_FragColor = vec4(col,1.);
+    //gl_FragColor.rgb = vec3(n-1.7);
 }
 `;
 
@@ -155,16 +236,21 @@ export function makeCloudMaterial() {
 
     
     const uniforms = {
-        camPos: { value: new Vector3(0, 0, 0)} 
+        camPos: { value: new Vector3(0, 0, 0)} ,
+        frustumCorners: {value:new Matrix4()},
+        viewInverse:{value:new Matrix4()},
+        sceneTexture: {value:null},
+        depthTexture: {value:null},
+        time:{value:0.0}
     };
 
     const material = new ShaderMaterial({
         vertexShader: vs,
         fragmentShader: fs,
         uniforms,
-        side: BackSide,
-        transparent: true,
-        vertexColors: false
+   //     side: BackSide,
+       // transparent: false,
+        //vertexColors: false
     });
 
     return material;
